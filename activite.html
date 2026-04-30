@@ -156,7 +156,7 @@
             const pop = document.getElementById('guide-popup');
             pop.innerHTML = msg;
             pop.style.display = 'block';
-            setTimeout(() => { pop.style.display = 'none'; }, 1000);
+            setTimeout(() => { pop.style.display = 'none'; }, 4000);
         }
 
         class Fish {
@@ -478,7 +478,7 @@
                     const count = Object.values(gameState.items).filter(v => v).length;
                     if(count === 3) { 
                         gameState.horseActive = true; horse.x = canvas.width * 0.42; horse.y = canvas.height * 0.6;
-                        setTimeout(() => showNotification("Le palomino est la ! Va le rejoindre !"), 6000);
+                        setTimeout(() => showNotification("Le palomino est la ! Va le rejoindre !"), 1000);
                     }
                 }
             });
