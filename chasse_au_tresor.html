@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>La Chasse au Trésor</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            background: radial-gradient(circle, #c789bf 0%, #a2a7a3 100%);
+            font-family: 'Segoe UI', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        h1 { color: #2c3e50; margin: 10px 0; }
+
+        .scenic-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            position: relative;
+            width: 90%;
+            margin: 0 auto;
+            perspective: 1200px;
+        }
+
+        .map-frame {
+            z-index: 10;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 0 20px;
+            max-width: 400px;
+        }
+        .map-frame img { width: 100%; height: auto; display: block;}
+
+        .main-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 170px;
+            perspective: 1200px;
+            padding: 20px;
+            width: 100%;
+        }
+
+        .film-strip {
+            background-color: #1a1a1a;
+            padding: 10px 5px;
+            display: flex;
+            flex-direction: row;
+            gap: 5px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            border-radius: 4px;
+            width: auto;
+            align-items: stretch;
+            transition: transform 0.5s ease-in-out;
+            cursor: pointer;
+        }
+        .photo-container {
+            display: flex;
+            flex-direction: column;
+            gap: 70px;
+            padding: 0 10px;
+        }
+
+        .hole-track.vertical {
+            width: 15px;
+            flex-shrink: 0; 
+            background-image: radial-gradient(circle, #eee 40%, transparent 45%);
+            background-size: 100% 25px; 
+            background-repeat: repeat-y;
+        }
+
+        .side-left:hover {
+            transform: rotateY(10deg) rotateZ(0deg) scale(1.05); 
+        }
+
+        .side-right:hover {
+            transform: rotateY(-10deg) rotateZ(0deg) scale(1.05);
+        }
+
+        #map-container {
+            position: relative;
+            cursor: crosshair;
+            background: white;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        #france-map {
+            display: block;
+            max-height: 70vh;
+            width: auto;
+        }
+
+        .photo-box {
+            width: 100px;
+            background: #000;
+            overflow: hidden;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .photo-box img {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: contain;
+        }
+
+        .dot {
+            position: absolute;
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            transition: opacity 0.5s ease-out;
+            z-index: 15;
+        }
+        .dot.wrong { background: #ff4757; animation: fade 1.5s forwards; }
+        .dot.correct { background: #2ed573; box-shadow: 0 0 15px #2ed573; width: 18px; height: 18px; }
+
+        .hint-text {
+            position: absolute;
+            transform: translate(-50%, -150%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            white-space: nowrap;
+            animation: fade 2s forwards;
+            transition: opacity 0.5s ease-out;
+            z-index: 20;
+        }
+
+        @keyframes box-heartbeat-rainbow {
+            0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 20px rgba(224, 93, 93, 0.6); border: 5px solid #e67878; }
+            25% { transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 40px rgba(0, 255, 0, 0.8); border: 5px solid #8fe28f; }
+            50% { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 60px rgba(0, 0, 255, 1); border: 5px solid #8484f0; }
+            75% { transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 40px rgba(255, 255, 0, 0.8); border: 5px solid #eeee7a; }
+            100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 20px rgba(255, 0, 0, 0.6); border: 5px solid #cc7f7f; }
+        }
+
+        #victory-card {
+            position: absolute;
+            top: 50%; left: 50%;
+            animation: box-heartbeat-rainbow 0.8s infinite ease-in-out;
+            background: white; padding: 30px;
+            border-radius: 20px; text-align: center;
+            display: none; z-index: 1000;
+        }
+
+        .fade-out {
+            opacity: 0 !important;
+            transition: opacity 0.8s ease-out !important;
+        }
+
+        /* Voiture 2D Pixel Art Top-Down (conforme à l'image) */
+        #pixel-car {
+            position: absolute;
+            width: 32px;
+            height: 20px;
+            z-index: 100;
+            display: none;
+            pointer-events: none;
+            filter: drop-shadow(1px 2px 1px rgba(0,0,0,0.3));
+        }
+
+        /* --- MODIFICATION ICI : Style pour les particules de fumée grise/noire --- */
+        .smoke-particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 95; /* Juste derrière la voiture */
+            animation: smokeFade 1.2s forwards;
+        }
+
+        @keyframes smokeFade {
+            0% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(2.5); }
+        }
+    </style>
+</head>
+<body>
+
+    <audio id="victory-music">
+        <source src="diet_pepsi.mp3" type="audio/mp4">
+    </audio>
+
+    <h1>Mais ou va t'on ?</h1><br>Clique sur la carte pour trouver petite neuille</br></h1>
+
+    <div class="main-wrapper">
+        <div class="film-strip side-left">
+            <div class="hole-track vertical"></div>
+            <div class="photo-container">
+                <div class="photo-box"><img src="alix_langue.JPEG"></div>
+                <div class="photo-box"><img src="alix_bg.JPEG"></div>
+                <div class="photo-box"><img src="alix_sourcil.JPEG"></div>
+            </div>
+            <div class="hole-track vertical"></div>
+        </div>
+
+        <div id="map-container">
+            <img id="france-map" src="france.png" alt="Carte de France">
+            
+            <svg id="pixel-car" viewBox="0 0 32 20">
+                <rect x="0" y="2" width="32" height="16" fill="#e74c3c" />
+                
+                <rect x="22" y="4" width="4" height="12" fill="#ecf0f1" />
+                <polygon points="26,4 22,16 23,16 26,5" fill="#bdc3c7" />
+
+                <rect x="6" y="4" width="16" height="12" fill="#c0392b" />
+
+                <rect x="29" y="3" width="2" height="2" fill="#f1c40f" />
+                <rect x="29" y="15" width="2" height="2" fill="#f1c40f" />
+
+                <rect x="31" y="4" width="1" height="12" fill="#bdc3c7" />
+
+                <rect x="1" y="3" width="2" height="2" fill="#a93226" />
+                <rect x="1" y="15" width="2" height="2" fill="#a93226" />
+
+                <rect x="21" y="0" width="2" height="2" fill="#bdc3c7" />
+                <rect x="21" y="18" width="2" height="2" fill="#bdc3c7" />
+            </svg>
+        </div>
+
+        <div class="film-strip side-right">
+            <div class="hole-track vertical"></div>
+            <div class="photo-container">
+                <div class="photo-box"><img src="alix_ceinture.JPEG"></div>
+                <div class="photo-box"><img src="alix_infirmiere.JPEG"></div>
+                <div class="photo-box"><img src="alix_plage.JPEG"></div>
+            </div>
+            <div class="hole-track vertical"></div>
+        </div>
+    </div>
+
+    <div id="victory-card">
+        <h2 style="font-size: 30px;">🎉 C'EST GAGNÉ ! 🎉</h2>
+        <p style="font-size: 20px;">On part à l'<strong>Île de Ré !</strong></p>
+    </div>
+
+    <script>
+        const container = document.getElementById('map-container');
+        const map = document.getElementById('france-map');
+        const victoryCard = document.getElementById('victory-card');
+        const car = document.getElementById('pixel-car');
+        const music = document.getElementById('victory-music');
+
+        const targetX = 28.5; 
+        const targetY = 50.5;
+        const bordeauxX = 33.5; 
+        const bordeauxY = 74.0;
+        const tolerance = 2.5;
+
+        // Fonction pour calculer la position sur une courbe de Bézier cubique
+        function getBezierPoint(t, p0, p1, p2, p3) {
+            const cx = 3 * (p1.x - p0.x);
+            const bx = 3 * (p2.x - p1.x) - cx;
+            const ax = p3.x - p0.x - cx - bx;
+            const cy = 3 * (p1.y - p0.y);
+            const by = 3 * (p2.y - p1.y) - cy;
+            const ay = p3.y - p0.y - cy - by;
+            const x = (ax * Math.pow(t, 3)) + (bx * Math.pow(t, 2)) + (cx * t) + p0.x;
+            const y = (ay * Math.pow(t, 3)) + (by * Math.pow(t, 2)) + (cy * t) + p0.y;
+            return { x, y };
+        }
+
+        // --- MODIFICATION ICI : Classe pour gérer les particules de fumée grise/noire ---
+        class SmokeParticle {
+            constructor(x, y) {
+                this.el = document.createElement('div');
+                this.el.className = 'smoke-particle';
+                this.el.style.left = x + '%';
+                this.el.style.top = y + '%';
+                // Nuances aléatoires de gris foncé/noir
+                const shades = ['#2c3e50', '#34495e', '#1c2833', '#000000'];
+                this.el.style.backgroundColor = shades[Math.floor(Math.random() * shades.length)];
+                container.appendChild(this.el);
+                
+                // Nettoyage automatique du DOM après l'animation
+                setTimeout(() => {
+                    this.el.remove();
+                }, 1200); 
+            }
+        }
+
+        function driveCar() {
+            car.style.display = 'block';
+            const duration = 4000; 
+            const start = performance.now();
+
+            const p0 = { x: bordeauxX, y: bordeauxY };
+            const p1 = { x: bordeauxX - 12, y: bordeauxY - 8 }; 
+            const p2 = { x: targetX + 12, y: targetY + 12 };    
+            const p3 = { x: targetX, y: targetY };              
+
+            function animate(time) {
+                let t = (time - start) / duration;
+                if (t > 1) t = 1;
+
+                const pos = getBezierPoint(t, p0, p1, p2, p3);
+                const nextPos = getBezierPoint(Math.min(t + 0.01, 1), p0, p1, p2, p3);
+                const angle = Math.atan2(nextPos.y - pos.y, nextPos.x - pos.x) * 180 / Math.PI;
+
+                car.style.left = pos.x + "%";
+                car.style.top = pos.y + "%";
+                // L'angle par défaut du SVG est horizontal vers la droite. Pas besoin d'ajouter 90deg ici.
+                car.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+
+                // --- MODIFICATION ICI : Génération de fumée ---
+                // Créer une particule de fumée à chaque frame pendant le mouvement
+                if (t < 0.99) { // Arrêter juste avant la fin
+                    new SmokeParticle(pos.x, pos.y);
+                }
+
+                if (t < 1) {
+                    requestAnimationFrame(animate);
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        container.addEventListener('click', function(e) {
+            const rect = map.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 100;
+            const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+            const dist = Math.sqrt(Math.pow(x - targetX, 2) + Math.pow(y - targetY, 2));
+            const dot = document.createElement('div');
+            dot.style.left = x + "%";
+            dot.style.top = y + "%";
+
+            if (dist < tolerance) {
+                dot.className = 'dot correct';
+                container.appendChild(dot);
+                
+                music.play();
+                victoryCard.style.display = 'block';
+
+                const elementsToHide = document.querySelectorAll('.dot:not(.correct), .hint-text');
+                elementsToHide.forEach(el => {
+                    el.classList.add('fade-out');
+                    setTimeout(() => el.remove(), 800);
+                });
+
+                // Confettis
+                setTimeout(() => {
+                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, zIndex: 2000 });
+                }, 20);
+
+                // GESTION DU DÉLAI : La voiture part quand la carte s'en va
+                setTimeout(() => {
+                    victoryCard.classList.add('fade-out');
+                    
+                    // On lance la voiture juste avant que le fondu ne finisse
+                    setTimeout(() => { 
+                        driveCar(); 
+                    }, 400); 
+                    
+                    setTimeout(() => { 
+                        victoryCard.style.display = 'none'; 
+                    }, 800);
+                }, 7000);
+
+            } else {
+                dot.className = 'dot wrong';
+                container.appendChild(dot);
+                
+                const hint = document.createElement('div');
+                hint.className = 'hint-text';
+                hint.style.left = x + "%";
+                hint.style.top = y + "%";
+                
+                let msg = dist < 10 ? "Tu brûles ! 🔥" : "C'est froid... ❄️";
+                let dir = (y > targetY + 3 ? " Nord ⬆️" : (y < targetY - 3 ? " Sud ⬇️" : "")) +
+                          (x < targetX - 3 ? " Est ➡️" : (x > targetX + 3 ? " Ouest ⬅️" : ""));
+                
+                hint.innerText = msg + dir;
+                container.appendChild(hint);
+                
+                setTimeout(() => {
+                    hint.classList.add('fade-out');
+                    dot.classList.add('fade-out');
+                    setTimeout(() => {
+                        if (hint.parentNode) hint.remove();
+                        if (dot.parentNode) dot.remove();
+                    }, 500);
+                }, 2000);
+            }
+        });
+    </script>
+</body>
+</html>

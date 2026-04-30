@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>L'Odyssée du Rivage - Version HD Pixel Art</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Verdana', sans-serif; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        
+        #ui-layer {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(20, 20, 20, 0.9); color: #fff; padding: 15px;
+            border: 3px solid #f1c40f; border-radius: 5px; z-index: 100;
+        }
+        .inventory-title { font-size: 10px; letter-spacing: 2px; margin-bottom: 10px; color: #f1c40f; text-align: center; }
+        .inventory { display: flex; gap: 10px; }
+        .item-slot {
+            width: 50px; height: 50px; border: 2px solid #444; background: #000;
+            display: flex; align-items: center; justify-content: center; position: relative;
+        }
+        .item-slot.collected { border-color: #2ecc71; box-shadow: inset 0 0 10px #2ecc71; }
+        .label { position: absolute; bottom: -14px; font-size: 8px; color: #eee; width: 100%; text-align: center; }
+
+        #guide-popup {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: #fff; color: #333; padding: 15px 30px; border-radius: 50px;
+            border: 4px solid #3498db; z-index: 200; text-align: center; font-weight: bold;
+            display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        #start-modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85); color: white; padding: 30px; border: 4px solid #f1c40f;
+            text-align: center; z-index: 1000; border-radius: 15px; width: 500px;
+        }
+        #start-modal button { 
+            background: #f1c40f; border: none; padding: 15px 40px; font-weight: bold; 
+            cursor: pointer; margin-top: 15px; border-radius: 5px;transition: transform 0.2s;font-size: 15px;
+        }
+        #start-modal button:hover {
+            transform: scale(1.1);
+            background: #f39c12;
+        }
+
+        #final-image {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 80%;
+            max-height: 80%;
+            border: 10px solid #f1c40f;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            z-index: 2000;
+            display: none;
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+        }
+
+        canvas { display: block; image-rendering: pixelated; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <audio id="horse-music" preload="auto">
+            <source src="Hello World.mp4" type="audio/mp4">
+        </audio>
+
+        <img id="final-image" src="palomino.png" alt="Félicitations !">
+
+        <div id="start-modal">
+            <h2>Bienvenue Alix !</h2>
+            <p>Explore la forêt pour retrouver les 3 objets perdus.<br> <br>Tu trouveras ton inventaire en haut à gauche.<br>
+           <br> Utilise les flèches du clavier pour te déplacer.<br><br> Ces objets te permettront de débloquer ton activité !<br></p>
+            <button onclick="startGame()">C'est parti mon kiki !</button>
+        </div>
+
+        <div id="ui-layer">
+            <div class="inventory-title">OBJETS PERDUS</div>
+            <div class="inventory">
+                <div id="slot-bottes" class="item-slot"><canvas id="icon-bottes" width="40" height="40"></canvas><div class="label" id="label-bottes">???</div></div>
+                <div id="slot-selle" class="item-slot"><canvas id="icon-selle" width="40" height="40"></canvas><div class="label" id="label-selle">???</div></div>
+                <div id="slot-harnais" class="item-slot"><canvas id="icon-harnais" width="40" height="40"></canvas><div class="label" id="label-harnais">???</div></div>
+            </div>
+        </div>
+        <div id="guide-popup"></div>
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        const horseMusic = document.getElementById('horse-music');
+
+        function playCollectSound() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(523, audioCtx.currentTime); 
+            osc.frequency.exponentialRampToValueAtTime(1046, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        }
+
+        const gameState = {
+            isStarted: false,
+            items: { bottes: false, selle: false, harnais: false },
+            horseActive: false,
+            waveOffset: 0,
+            cyclistX: canvas.width * 0.52 + 35,
+            cyclistY: -50,
+            cyclistState: "descending", 
+            cyclistRotation: 0,
+            lightRotation: 0,
+            fishes: [],
+            splashes: []
+        };
+
+        const player = { x: canvas.width * 0.4, y: canvas.height / 2, speed: 4, isMounted: false, dir: 'down' };
+        const horse = { x: 0, y: 0 };
+        const collectables = [
+            { id: 'bottes', name: 'les BOTTES', x: canvas.width - 250, y: 150, found: false },
+            { id: 'selle', name: 'la SELLE', x: canvas.width - 380, y: canvas.height - 200, found: false },
+            { id: 'harnais', name: 'la CORDE', x: canvas.width - 150, y: canvas.height / 2 + 100, found: false }
+        ];
+
+        const keys = {};
+        window.addEventListener('keydown', e => { keys[e.code] = true; });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+        function startGame() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            audioCtx.resume();
+            document.getElementById('start-modal').style.display = 'none';
+            gameState.isStarted = true;
+        }
+
+        function showNotification(msg) {
+            const pop = document.getElementById('guide-popup');
+            pop.innerHTML = msg;
+            pop.style.display = 'block';
+            setTimeout(() => { pop.style.display = 'none'; }, 1000);
+        }
+
+        class Fish {
+            constructor() { this.init(); }
+            init() {
+                this.x = Math.random() * (canvas.width * 0.25);
+                this.yBase = Math.random() * canvas.height;
+                this.y = this.yBase;
+                this.z = 0; this.vz = 0; this.gravity = 0.15;
+                this.isJumping = false;
+                this.jumpTimer = Math.random() * 200 + 100;
+                this.size = 12;
+                this.color = Math.random() > 0.5 ? "#ecf0f1" : "#bdc3c7";
+            }
+            update() {
+                if (!this.isJumping) {
+                    this.jumpTimer--;
+                    if (this.jumpTimer <= 0) {
+                        this.isJumping = true;
+                        this.vz = -Math.random() * 4 - 3;
+                        this.createSplash(this.x, this.yBase);
+                    }
+                } else {
+                    this.z += this.vz; this.vz += this.gravity;
+                    this.y = this.yBase + this.z;
+                    if (this.z > 0) { 
+                        this.createSplash(this.x, this.yBase);
+                        this.z = 0; this.isJumping = false;
+                        this.jumpTimer = Math.random() * 300 + 200;
+                        this.x = Math.random() * (canvas.width * 0.25);
+                        this.yBase = Math.random() * canvas.height;
+                    }
+                }
+            }
+            createSplash(x, y) {
+                for(let i=0; i<6; i++) {
+                    gameState.splashes.push({ x: x, y: y, vx: (Math.random()-0.5)*3, vy: -Math.random()*3, life: 1.0 });
+                }
+            }
+            draw() {
+                if (!this.isJumping) return;
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.ellipse(0, 0, this.size, this.size/2.5, 0, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(-this.size + 2, 0); ctx.lineTo(-this.size - 6, -6); ctx.lineTo(-this.size - 6, 6); ctx.closePath(); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(-2, -this.size/3); ctx.lineTo(2, -this.size/1.5 - 2); ctx.lineTo(6, -this.size/3); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = "#333"; ctx.fillRect(this.size - 6, -2, 2, 2);
+                ctx.restore();
+            }
+        }
+
+        for(let i=0; i<8; i++) gameState.fishes.push(new Fish());
+
+        function drawPixelBottes(ctx, x, y, size) {
+            ctx.fillStyle = "#5d4037"; ctx.fillRect(x, y, size/2.5, size); ctx.fillRect(x, y+size-8, size, 8);
+            ctx.fillStyle = "#3e2723"; ctx.fillRect(x, y+size-3, size, 3);
+        }
+
+        function drawPixelSelle(ctx, x, y, size) {
+            ctx.fillStyle = "#6d4c41"; ctx.beginPath(); ctx.ellipse(x+size/2, y+size/2, size/1.8, size/2.5, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#f1c40f"; ctx.fillRect(x+size/2-2, y+size-5, 6, 8);
+        }
+
+        function drawPixelHarnais(ctx, x, y, size) {
+            ctx.strokeStyle = "#d2b48c"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2.5, 0, Math.PI * 2); ctx.stroke();
+            ctx.setLineDash([4, 4]); ctx.strokeStyle = "#a68d6d"; ctx.stroke(); ctx.setLineDash([]);
+        }
+
+        function drawFisherman() {
+            const x = canvas.width * 0.31, y = canvas.height * 0.75;
+            ctx.fillStyle = "#1e3799"; ctx.fillRect(x, y, 22, 18);
+            ctx.fillStyle = "#0c2461"; ctx.fillRect(x+2, y+18, 7, 5); ctx.fillRect(x+13, y+18, 7, 5);
+            ctx.fillStyle = "#f1c40f"; ctx.fillRect(x+1, y+23, 9, 4); ctx.fillRect(x+12, y+23, 9, 4);
+            ctx.fillStyle = "#ffe0bd"; ctx.fillRect(x+5, y-10, 12, 10);
+            ctx.fillStyle = "#d1d8e0"; ctx.beginPath(); ctx.moveTo(x+5, y-2); ctx.lineTo(x+17, y-2); ctx.lineTo(x+14, y+6); ctx.lineTo(x+8, y+6); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = "#a5b1c2"; ctx.fillRect(x+7, y-2, 8, 2);
+            ctx.fillStyle = "#333"; ctx.fillRect(x+7, y-7, 2, 2); ctx.fillRect(x+13, y-7, 2, 2);
+            ctx.fillStyle = "#4a4a4a"; ctx.beginPath(); ctx.moveTo(x-2, y-10); ctx.lineTo(x+11, y-22); ctx.lineTo(x+24, y-10); ctx.fill();
+            ctx.fillRect(x-2, y-10, 26, 3);
+            ctx.strokeStyle = "#5d4037"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x+18, y+5); ctx.lineTo(x-45, y-35); ctx.stroke();
+            ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x-45, y-35); ctx.lineTo(x-45, y+20); ctx.stroke();
+            const bob = Math.sin(Date.now()/500)*3;
+            ctx.fillStyle = "white"; ctx.fillRect(x-47, y+20+bob, 5, 5);
+            ctx.fillStyle = "red"; ctx.fillRect(x-47, y+17+bob, 5, 3);
+        }
+
+        function drawDetailedTree(x, y, type) {
+            if (type === 0) {
+                ctx.fillStyle = "#4e342e"; ctx.fillRect(x+8, y, 12, 50);
+                ctx.fillStyle = "#0a290a"; for(let i=0; i<4; i++){ ctx.beginPath(); ctx.moveTo(x-20+i*5, y+10-i*18); ctx.lineTo(x+14, y-30-i*18); ctx.lineTo(x+48-i*5, y+10-i*18); ctx.fill(); }
+                ctx.fillStyle = "#1e5d1e"; for(let i=0; i<4; i++){ ctx.beginPath(); ctx.moveTo(x-15+i*5, y+5-i*18); ctx.lineTo(x+14, y-25-i*18); ctx.lineTo(x+43-i*5, y+5-i*18); ctx.fill(); }
+            } else {
+                ctx.fillStyle = "#5d4037"; ctx.fillRect(x+10, y, 15, 60);
+                const colors = ["#1b5e20", "#2ecc71", "#1e5d1e"];
+                for(let k=0; k<6; k++) {
+                    ctx.fillStyle = colors[k%3];
+                    ctx.beginPath(); ctx.arc(x + 17 + Math.sin(k)*20, y - 20 + Math.cos(k)*15, 30, 0, Math.PI*2); ctx.fill();
+                }
+            }
+        }
+
+        function drawLighthouse() {
+            const x = canvas.width * 0.35, y = 100;
+            ctx.save();
+            ctx.translate(x + 15, y + 100);
+            ctx.fillStyle = "#444"; ctx.beginPath();
+            ctx.moveTo(-70, 15); ctx.lineTo(-50, -30); ctx.lineTo(-10, -50); 
+            ctx.lineTo(40, -55); ctx.lineTo(85, -30); ctx.lineTo(100, 20);
+            ctx.lineTo(20, 35); ctx.lineTo(-50, 30); ctx.fill();
+            ctx.fillStyle = "#555"; ctx.beginPath();
+            ctx.moveTo(-40, 0); ctx.lineTo(-20, -35); ctx.lineTo(20, -40); ctx.lineTo(60, -20); ctx.lineTo(40, 15); ctx.fill();
+            ctx.fillStyle = "#666"; ctx.beginPath();
+            ctx.moveTo(-10, -10); ctx.lineTo(10, -30); ctx.lineTo(35, -15); ctx.lineTo(20, 10); ctx.fill();
+            ctx.strokeStyle = "#222"; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(-30, -10); ctx.lineTo(-10, 5); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(40, -40); ctx.lineTo(55, -20); ctx.stroke();
+            ctx.restore();
+
+            ctx.fillStyle = "#bdc3c7"; ctx.beginPath();
+            ctx.ellipse(x + 15, y + 50, 25, 10, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#95a5a6"; ctx.fillRect(x - 5, y + 45, 40, 8);
+
+            ctx.fillStyle = "white"; ctx.fillRect(x, y-60, 30, 110);
+            ctx.fillStyle = "#c0392b"; 
+            ctx.fillRect(x, y-60, 30, 20); ctx.fillRect(x, y-10, 30, 20); ctx.fillRect(x, y+35, 30, 15);
+            
+            ctx.strokeStyle = "#222"; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(x-12, y-68); ctx.lineTo(x+42, y-68); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x-12, y-65); ctx.lineTo(x+42, y-65); ctx.stroke();
+            for(let i = -10; i <= 40; i += 8) {
+                ctx.beginPath(); ctx.moveTo(x+i, y-65); ctx.lineTo(x+i, y-57); ctx.stroke();
+            }
+            ctx.fillStyle = "#222"; ctx.fillRect(x-10, y-65, 50, 8); 
+            ctx.fillStyle = "#333"; ctx.fillRect(x, y-90, 30, 25); 
+            
+            gameState.lightRotation += 0.02;
+            const grad = ctx.createRadialGradient(x+15, y-78, 0, x+15, y-78, 200); 
+            grad.addColorStop(0, "rgba(255, 255, 0, 0.4)"); 
+            grad.addColorStop(1, "transparent"); 
+            ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(x+15, y-78); 
+            ctx.arc(x+15, y-78, 250, gameState.lightRotation, gameState.lightRotation + 0.5); ctx.fill();
+        }
+
+        function drawGirl(x, y, dir, mounted) {
+            const bounce = Math.sin(Date.now() / 150) * 3;
+            const t = y + (mounted ? 0 : bounce);
+            
+            ctx.save();
+            ctx.translate(x + 18, t + 25);
+            if(dir === 'left') ctx.scale(-1, 1);
+            ctx.translate(-18, -25);
+
+            ctx.fillStyle = "#4a4a4a"; ctx.fillRect(2, 15, 34, 25);
+            ctx.fillStyle = "#3e2723"; ctx.fillRect(8, 40, 6, 10); ctx.fillRect(24, 40, 6, 10);
+            ctx.fillStyle = "#5d4037"; ctx.fillRect(7, 46, 9, 5); ctx.fillRect(22, 46, 9, 5);
+            ctx.fillStyle = "#2d5a27"; ctx.fillRect(6, 22, 26, 20);
+            ctx.fillStyle = "#f1c40f"; ctx.fillRect(6, 32, 26, 3);
+            ctx.fillStyle = "#8e44ad"; ctx.fillRect(16, 22, 6, 10);
+            ctx.fillStyle = "#ffe0bd"; ctx.fillRect(10, 2, 18, 22);
+            ctx.fillStyle = "white"; ctx.fillRect(13, 12, 4, 3); ctx.fillRect(21, 12, 4, 3);
+            ctx.fillStyle = "#333"; ctx.fillRect(14, 12, 2, 2); ctx.fillRect(22, 12, 2, 2);
+            ctx.fillStyle = "#4e342e"; ctx.fillRect(4, 2, 30, 10);
+            ctx.fillStyle = "#2d1a10"; ctx.fillRect(10, 2, 18, 5); ctx.fillRect(16, 2, 6, 2);
+            ctx.fillStyle = "#4e342e"; ctx.fillRect(4, 12, 6, 25); ctx.fillRect(28, 12, 6, 25);
+            ctx.fillStyle = "#bdc3c7"; ctx.fillRect(4, 20, 7, 5); ctx.fillRect(27, 20, 7, 5);
+            ctx.restore();
+        }
+
+        function drawDetailedHorse(x, y, dir, mounted) {
+            const t = Date.now() / 150;
+            const isMoving = keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'];
+            const legMove = (mounted && isMoving) ? Math.sin(t) * 10 : 0;
+            const p = 1.5; 
+
+            ctx.save();
+            ctx.translate(x + 30, y + 30);
+            if (dir === 'left') ctx.scale(-1, 1);
+            ctx.translate(-30, -30);
+            
+            const contour = "#000000";
+            const corpsColor = "#C48A4E";
+            const criniereColor = "#5F3A2A";
+            const museauColor = "#F0F0F0";
+
+            ctx.fillStyle = corpsColor;
+            ctx.fillRect(8*p, 20*p, 30*p, 18*p);
+            ctx.fillRect(10*p, 18*p, 26*p, 2*p);
+            ctx.fillRect(32*p, 8*p, 6*p, 12*p);
+            ctx.fillRect(34*p, 2*p, 12*p, 8*p);
+
+            ctx.fillStyle = museauColor;
+            ctx.fillRect(44*p, 4*p, 4*p, 6*p);
+            ctx.fillStyle = contour;
+            ctx.fillRect(38*p, 4*p, 1*p, 1*p);
+            ctx.fillRect(46*p, 8*p, 1*p, 1*p);
+            ctx.fillStyle = corpsColor;
+            ctx.beginPath(); ctx.moveTo(35*p, 2*p); ctx.lineTo(35*p, -2*p); ctx.lineTo(37*p, 2*p); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(38*p, 2*p); ctx.lineTo(38*p, -2*p); ctx.lineTo(40*p, 2*p); ctx.fill();
+
+            ctx.fillStyle = criniereColor;
+            ctx.fillRect(28*p, 8*p, 4*p, 12*p);
+            ctx.fillRect(32*p, 6*p, 2*p, 2*p);
+            ctx.fillRect(30*p, 10*p, 2*p, 10*p);
+            ctx.fillRect(-2*p, 18*p, 6*p, 14*p);
+            ctx.fillRect(0*p, 32*p, 2*p, 2*p);
+
+            ctx.fillStyle = contour;
+            ctx.fillRect(10*p, 38*p, 3*p, 12*p + legMove/2); 
+            ctx.fillRect(14*p, 38*p, 3*p, 12*p - legMove/2); 
+            ctx.fillRect(31*p, 38*p, 3*p, 12*p - legMove/2); 
+            ctx.fillRect(35*p, 38*p, 3*p, 12*p + legMove/2); 
+
+            ctx.fillStyle = "#333";
+            ctx.fillRect(10*p, 50*p + legMove/2, 3*p, 2*p);
+            ctx.fillRect(14*p, 50*p - legMove/2, 3*p, 2*p);
+            ctx.fillRect(31*p, 50*p - legMove/2, 3*p, 2*p);
+            ctx.fillRect(35*p, 50*p + legMove/2, 3*p, 2*p);
+
+            ctx.strokeStyle = contour; ctx.lineWidth = 1;
+            ctx.strokeRect(34*p, 2*p, 12*p, 8*p);
+            ctx.strokeRect(44*p, 4*p, 4*p, 6*p);
+            ctx.beginPath();
+            ctx.moveTo(8*p, 20*p); ctx.lineTo(38*p, 20*p);
+            ctx.moveTo(8*p, 38*p); ctx.lineTo(38*p, 38*p);
+            ctx.moveTo(8*p, 20*p); ctx.lineTo(8*p, 38*p);
+            ctx.stroke();
+
+            if(mounted) {
+                ctx.fillStyle = "#5d4037";
+                ctx.beginPath(); ctx.ellipse(22*p, 20*p, 12*p, 4*p, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = "#f1c40f";
+                ctx.fillRect(20*p, 24*p, 3*p, 10*p);
+            }
+            ctx.restore();
+        }
+
+        function drawCycleAndRider(x, y, state) {
+            const t = Date.now() / 150;
+            const isVertical = state === "descending" || state === "ascending";
+            const bounce = Math.sin(t) * 2;
+            const riderY = -12 + bounce; 
+            ctx.save();
+            ctx.translate(x, y);
+            if (!isVertical) {
+                ctx.strokeStyle = "#111"; ctx.lineWidth = 3;
+                [ -25, 25 ].forEach(wheelX => {
+                    ctx.beginPath(); ctx.arc(wheelX, 20, 12, 0, Math.PI * 2); ctx.stroke();
+                    ctx.save(); ctx.translate(wheelX, 20); 
+                    ctx.rotate(gameState.cyclistRotation); 
+                    ctx.lineWidth = 1; ctx.strokeStyle = "#555";
+                    for(let i=0; i<6; i++) { ctx.rotate(Math.PI/3); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,12); ctx.stroke(); }
+                    ctx.restore();
+                });
+            } else {
+                ctx.fillStyle = "#000"; ctx.fillRect(-3, 10, 6, 20);
+            }
+            ctx.strokeStyle = "#e74c3c"; ctx.lineWidth = 4;
+            if (!isVertical) {
+                ctx.beginPath(); ctx.moveTo(-25, 20); ctx.lineTo(0, 22); ctx.lineTo(-5, -10); ctx.lineTo(-25, 20); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, 22); ctx.lineTo(25, 20); ctx.lineTo(15, -10); ctx.lineTo(0, 22); ctx.stroke();
+            } else { ctx.beginPath(); ctx.moveTo(0, 30); ctx.lineTo(0, -10); ctx.stroke(); }
+            ctx.fillStyle = "#000";
+            if (!isVertical) { ctx.fillRect(-10, -14 + bounce/2, 14, 5); } 
+            else { ctx.fillRect(-9, -14 + bounce/2, 18, 6); }
+            ctx.lineWidth = 4;
+            const legRootY = riderY + 2;
+            if (!isVertical) {
+                const pedR = 8;
+                const px1 = Math.cos(t) * pedR; const py1 = Math.sin(t) * pedR;
+                const px2 = Math.cos(t + Math.PI) * pedR; const py2 = Math.sin(t + Math.PI) * pedR;
+                ctx.strokeStyle = "#dbbfa0"; ctx.beginPath(); ctx.moveTo(0, legRootY); ctx.lineTo(px2, 22 + py2); ctx.stroke();
+                ctx.strokeStyle = "#111"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 22); ctx.lineTo(px2, 22 + py2); ctx.stroke();
+                ctx.fillStyle = "#000"; ctx.fillRect(px2-3, 21+py2, 6, 2);
+                ctx.strokeStyle = "#ffe0bd"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, legRootY); ctx.lineTo(px1, 22 + py1); ctx.stroke();
+                ctx.strokeStyle = "#333"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 22); ctx.lineTo(px1, 22 + py1); ctx.stroke();
+                ctx.fillStyle = "#000"; ctx.fillRect(px1-3, 21+py1, 6, 2);
+            } else {
+                const legMoveLeg = Math.sin(t) * 8;
+                ctx.strokeStyle = "#ffe0bd"; ctx.beginPath(); ctx.moveTo(-4, legRootY); ctx.lineTo(-8, 14 + legMoveLeg); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(4, legRootY); ctx.lineTo(8, 14 - legMoveLeg); ctx.stroke();
+                ctx.strokeStyle = "#333"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-11, 14 + legMoveLeg); ctx.lineTo(-5, 14 + legMoveLeg); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(5, 14 - legMoveLeg); ctx.lineTo(11, 14 - legMoveLeg); ctx.stroke();
+            }
+            ctx.fillStyle = "#3498db";
+            if (!isVertical) { ctx.fillRect(-10, riderY - 18, 16, 20); } 
+            else { ctx.fillRect(-8, riderY - 18, 16, 20); }
+            ctx.fillStyle = "#ffe0bd"; ctx.fillRect(-5, riderY - 30, 10, 10);
+            ctx.fillStyle = "#f1c40f"; ctx.fillRect(-7, riderY - 33, 14, 5);
+            ctx.strokeStyle = "#ffe0bd"; ctx.lineWidth = 3;
+            if (!isVertical) {
+                ctx.beginPath(); ctx.moveTo(5, riderY - 8); ctx.lineTo(18, -13); ctx.stroke();
+                ctx.strokeStyle = "#333"; ctx.beginPath(); ctx.moveTo(15, -10); ctx.lineTo(20, -15); ctx.stroke();
+            } else {
+                ctx.beginPath(); ctx.moveTo(-6, riderY - 8); ctx.lineTo(-12, -10); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(6, riderY - 8); ctx.lineTo(12, -10); ctx.stroke();
+                ctx.strokeStyle = "#333"; ctx.beginPath(); ctx.moveTo(-15, -10); ctx.lineTo(15, -10); ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function update() {
+            if (!gameState.isStarted) return;
+            let s = player.isMounted ? 6 : 4;
+            if (keys['ArrowUp']) { player.y -= s; player.dir = 'up'; }
+            if (keys['ArrowDown']) { player.y += s; player.dir = 'down'; }
+            if (keys['ArrowLeft']) { player.x -= s; player.dir = 'left'; }
+            if (keys['ArrowRight']) { player.x += s; player.dir = 'right'; }
+            if (player.x < canvas.width * 0.3 - 20) player.x = canvas.width * 0.3 - 20;
+
+            collectables.forEach(item => {
+                if (!item.found && Math.abs(player.x - item.x) < 40 && Math.abs(player.y - item.y) < 40) {
+                    item.found = true; 
+                    gameState.items[item.id] = true;
+                    playCollectSound(); 
+                    document.getElementById('slot-' + item.id).classList.add('collected');
+                    document.getElementById('label-' + item.id).innerText = item.id.toUpperCase();
+                    showNotification(`Bien joué ma biche ! Tu as trouvé ${item.name}.`);
+                    const count = Object.values(gameState.items).filter(v => v).length;
+                    if(count === 3) { 
+                        gameState.horseActive = true; horse.x = canvas.width * 0.42; horse.y = canvas.height * 0.6;
+                        setTimeout(() => showNotification("Le palomino est la ! Va le rejoindre !"), 6000);
+                    }
+                }
+            });
+
+            if (gameState.horseActive && !player.isMounted && Math.abs(player.x - horse.x) < 50 && Math.abs(player.y - horse.y) < 50) {
+                player.isMounted = true;
+                horseMusic.play().catch(e => console.log("Erreur lecture musique:", e));
+                
+                setTimeout(() => {
+                    const finalImg = document.getElementById('final-image');
+                    finalImg.style.display = 'block';
+                    setTimeout(() => { finalImg.style.opacity = '1'; }, 100);
+                }, 10000);
+            }
+
+            const turnY = 85; const speed = 1.5; 
+            const rotationSpeed = 0.15;
+            if (gameState.cyclistState === "descending") {
+                gameState.cyclistY += speed; gameState.cyclistRotation += rotationSpeed;
+                if (gameState.cyclistY >= turnY) { gameState.cyclistState = "turning_right"; gameState.cyclistY = turnY; }
+            } else if (gameState.cyclistState === "turning_right") {
+                gameState.cyclistX += speed; gameState.cyclistRotation += rotationSpeed;
+                if (gameState.cyclistX >= canvas.width * 0.82 - 35) { gameState.cyclistState = "ascending"; gameState.cyclistX = canvas.width * 0.82 - 35; }
+            } else if (gameState.cyclistState === "ascending") {
+                gameState.cyclistY -= speed; gameState.cyclistRotation -= rotationSpeed;
+                if (gameState.cyclistY < -100) { gameState.cyclistX = canvas.width * 0.52 + 35; gameState.cyclistY = -100; gameState.cyclistState = "descending"; }
+            }
+            gameState.fishes.forEach(f => f.update());
+            gameState.splashes.forEach((s, i) => {
+                s.x += s.vx; s.y += s.vy; s.vy += 0.1; s.life -= 0.02;
+                if(s.life <= 0) gameState.splashes.splice(i, 1);
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#2980b9"; ctx.fillRect(0, 0, canvas.width * 0.3, canvas.height); 
+            ctx.fillStyle = "#f1c40f"; ctx.fillRect(canvas.width * 0.3, 0, canvas.width * 0.2, canvas.height); 
+            ctx.fillStyle = "#27ae60"; ctx.fillRect(canvas.width * 0.5, 0, canvas.width * 0.5, canvas.height); 
+            
+            // --- DESSIN DE LA ROUTE ---
+            ctx.fillStyle = "#7f8c8d";
+            const rd1X = canvas.width * 0.52;
+            const rd2X = canvas.width * 0.82 - 70;
+            ctx.fillRect(rd1X, 0, 70, 120); 
+            ctx.fillRect(rd2X, 0, 70, 120); 
+            ctx.fillRect(rd1X, 50, (rd2X - rd1X) + 70, 70);
+
+            // --- POINTILLÉS BLANCS RÉRECTIFIÉS ---
+            ctx.strokeStyle = "white";
+            ctx.setLineDash([10, 10]); 
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            // Ligne verticale gauche (s'arrête au milieu de la route horizontale)
+            ctx.moveTo(rd1X + 35, 0); ctx.lineTo(rd1X + 35, 85);
+            // Ligne verticale droite (s'arrête au milieu de la route horizontale)
+            ctx.moveTo(rd2X + 35, 0); ctx.lineTo(rd2X + 35, 85);
+            // Ligne horizontale (ne commence qu'au centre de la route 1 et finit au centre de la route 2)
+            ctx.moveTo(rd1X + 35, 85); ctx.lineTo(rd2X + 35, 85);
+            ctx.stroke();
+            ctx.setLineDash([]); 
+
+            gameState.fishes.forEach(f => f.draw());
+            ctx.fillStyle = "white";
+            gameState.splashes.forEach(s => { ctx.globalAlpha = s.life; ctx.fillRect(s.x, s.y, 3, 3); });
+            ctx.globalAlpha = 1.0;
+            drawCycleAndRider(gameState.cyclistX, gameState.cyclistY, gameState.cyclistState);
+            drawLighthouse();
+            drawFisherman();
+            for(let i=canvas.width*0.56; i<canvas.width; i+=140) {
+                for(let j=100; j<canvas.height; j+=200) { drawDetailedTree(i + Math.sin(j)*30, j, (i+j)%2); }
+            }
+            ctx.fillStyle = "rgba(255,255,255,0.3)";
+            for(let i=0; i<canvas.height; i+=60) ctx.fillRect(canvas.width * 0.28 + Math.sin(Date.now()/500 + i/50)*15, i, 12, 18);
+            collectables.forEach(item => {
+                if(!item.found) {
+                    if(item.id === 'bottes') drawPixelBottes(ctx, item.x, item.y, 25);
+                    if(item.id === 'selle') drawPixelSelle(ctx, item.x, item.y, 25);
+                    if(item.id === 'harnais') drawPixelHarnais(ctx, item.x, item.y, 25);
+                }
+            });
+            if (gameState.horseActive) {
+                if (player.isMounted) { 
+                    drawGirl(player.x - 10, player.y, player.dir, true); 
+                    drawDetailedHorse(player.x - 30, player.y + 10, player.dir, true);
+                } else { 
+                    drawGirl(player.x, player.y, player.dir, false); 
+                    drawDetailedHorse(horse.x, horse.y, 'right', false);
+                }
+            } else { drawGirl(player.x, player.y, player.dir, false); }
+        }
+
+        drawPixelBottes(document.getElementById('icon-bottes').getContext('2d'), 10, 5, 30);
+        drawPixelSelle(document.getElementById('icon-selle').getContext('2d'), 5, 10, 30);
+        drawPixelHarnais(document.getElementById('icon-harnais').getContext('2d'), 5, 5, 30);
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        loop();
+    </script>
+</body>
+</html>

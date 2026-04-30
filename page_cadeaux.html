@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ton Cadeau Alix !</title>
+    <style>
+          body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', sans-serif;
+    
+    /* On simplifie la déclaration du background */
+    background: url('https://cdn.generationvoyage.fr/2021/06/phare-des-baleines-ile-de-re.jpg');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column; /* Important pour que le hint soit sous l'enveloppe */
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+        /* --- STYLE DES POLAROIDS --- */
+        /* --- STYLE DES POLAROIDS CORRIGÉ --- */
+.polaroid {
+    position: absolute;
+    background: white;
+    /* On ajuste le padding : 15px partout, sauf en bas (45px) pour l'effet photo */
+    padding: 15px 15px 45px 15px; 
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    width: 280px; /* Largeur du cadre */
+    transition: all 0.5s ease;
+    animation: float 5s ease-in-out infinite;
+    z-index: 5;
+    /* Pour s'assurer que rien ne dépasse du cadre blanc */
+    overflow: hidden; 
+}
+
+.polaroid img { 
+    width: 100%; 
+    height: 250px; /* On fixe une hauteur pour que toutes les photos soient uniformes */
+    object-fit: cover; /* Cette ligne est magique : elle remplit le cadre sans déformer l'image */
+    display: block;
+    border-radius: 2px; /* Un tout petit arrondi pour faire propre */
+}
+
+        /* Positions différentes pour les photos */
+        .p1 { top: 5%; left: 3%; transform: rotate(-8deg); animation-delay: 0s; }
+        .p2 { top: 5%; right: 7%; transform: rotate(8deg); animation-delay: 1s; }
+        .p3 { bottom: 5%; left: 5%; transform: rotate(-5deg); animation-delay: 2s; }
+        .p4 { bottom: 7%; right: 7%; transform: rotate(12deg); animation-delay: 0.5s; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(-5deg); }
+            50% { transform: translateY(-20px) rotate(5deg); }
+        }
+
+        
+       /* --- STYLE DE L'ENVELOPPE CORRIGÉ --- */
+.envelope-wrapper {
+    position: relative;
+    cursor: pointer;
+    z-index: 20;
+    
+    /* MÉTHODE DE CENTRAGE UNIVERSELLE */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    
+    /* On lui donne une taille pour que margin:auto marche */
+    width: 300px; 
+    margin: 50px auto 0 auto; /* 50px d'espace en haut, centré horizontalement */
+}
+
+.envelope {
+    position: relative;
+    width: 300px;
+    height: 200px;
+    background: #f1948a; /* Fond de l'enveloppe */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    z-index: 10;
+}
+
+/* Le rabat (le triangle qui s'ouvre) */
+.envelope:before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 15;
+    /* On crée un triangle plein qui pointe vers le bas */
+    border-left: 150px solid transparent;
+    border-right: 150px solid transparent;
+    border-top: 110px solid #ec7063; /* Couleur un peu plus foncée */
+    border-bottom: 0;
+    transform-origin: top;
+    transition: transform 0.5s 0.5s ease;
+    z-index: 15;
+}
+
+/* La face avant de l'enveloppe (le triangle du bas) */
+.envelope-front {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    z-index: 12;
+    /* On dessine les triangles qui ferment le bas et les côtés */
+    border-left: 150px solid #f1948a;
+    border-right: 150px solid #f1948a;
+    border-bottom: 100px solid #f5b7b1; /* Couleur un peu plus claire */
+    border-top: 100px solid transparent;
+}
+
+.letter {
+    position: absolute;
+    bottom: 5px; /* Elle commence au fond */
+    left: 50%;   /* Elle se place au milieu de l'enveloppe */
+    transform: translateX(-50%); /* On la décale de sa propre moitié pour qu'elle soit centrée */
+    
+    width: 240px;
+    height: 150px;
+    background: #fff5f5;
+    border: 2px solid #f1948a;
+    z-index: 11;
+    transition: transform 0.6s 0.3s ease, z-index 0.1s 0.3s;
+    
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+}
+
+.hint {
+    /* On l'aligne par rapport au centre du wrapper */
+    text-align: center;
+    width: 100%;
+    
+    /* L'ESPACE : on ajoute une marge en haut */
+    margin-top: 40px; 
+
+    font-family: 'Dancing Script', cursive; /* Une police style écriture à la main */
+    font-size: 22px;
+    
+    /* Optionnel : style du texte */
+    font-size: 1.1rem;
+    color: #000000;
+    font-weight: bold;
+    
+    /* On s'assure qu'il n'est pas en absolute */
+    position: relative; 
+}
+
+/* --- ANIMATION --- */
+/* ÉTAT OUVERT : On change le z-index pour passer devant */
+.envelope-wrapper.open .letter {
+    transform: translate(-50%, -220px); /* Elle monte haut */
+    z-index: 20; /* ELLE PASSE DEVANT TOUT LE MONDE */
+}
+
+/* Le rabat doit passer derrière pour ne pas gêner */
+.envelope-wrapper.open .envelope:before {
+    transform: rotateX(180deg);
+    z-index: 5; 
+}
+
+/* Position de la zone sur ton phare (tu devras peut-être ajuster top/left) */
+#phare-zone {
+    position: fixed;
+    top: 13.4%; /* À ajuster pour qu'il soit sur la lanterne */
+    left: 29.75%; /* À ajuster pour qu'il soit sur la lanterne */
+    width: 30px; /* Taille approximative de la lanterne */
+    height: 50px;
+    cursor: pointer;
+    z-index: 2000; /* Très haut pour être cliquable */
+}
+
+/* Le Halo Lumineux */
+#phare-halo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    background-color: rgba(255, 255, 100, 0.9); /* Jaune clair */
+    border-radius: 50%;
+    box-shadow: 0 0 50px 30px rgba(255, 255, 150, 0.8); /* L'effet de halo */
+    opacity: 0; /* Caché au départ */
+    transition: opacity 1s ease-in-out; /* Effet de fondu */
+}
+
+/* Le Message Secret */
+#phare-message {
+    position: absolute;
+    bottom: -60px; /* En dessous de la lanterne */
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 10px;
+    white-space: nowrap;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 14px;
+    opacity: 0; /* Caché */
+    transition: opacity 0.5s ease-in-out, transform 0.5s ease-out;
+}
+
+/* ÉTATS ACTIFS (déclenchés par le JS) */
+#phare-zone.active #phare-halo {
+    opacity: 1; /* Il s'allume ! */
+}
+
+#phare-zone.active #phare-message {
+    opacity: 1; /* Le message apparaît ! */
+    transform: translateX(-50%) translateY(-10px); /* Un petit mouvement vers le haut */
+}
+
+
+
+
+
+#mouette {
+    position: fixed;
+    top: 30%; /* Hauteur de départ */
+    left: -150px; /* Hors de l'écran à gauche */
+    width: 80px; /* Taille de la mouette */
+    opacity: 1;
+    z-index: 500; /* Entre les photos et l'enveloppe */
+    
+    /* L'animation : elle traverse, s'arrête, recommence */
+    animation: volMouette 20s linear infinite;
+}
+
+/* L'animation de vol */
+@keyframes volMouette {
+    0% { left: -150px; top: 30%; } /* Départ */
+    30% { top: 25%; } /* Elle monte un peu */
+    50% { top: 35%; } /* Elle redescend */
+    80% { top: 28%; } /* Remonte */
+    100% { left: 100vw; top: 30%; } /* Arrivée à droite */
+}
+#mouette {
+    /* ... tes propriétés actuelles ... */
+    cursor: pointer; /* Transforme la souris en main au survol */
+}
+
+/* Ajoute ça à la fin de ton style */
+.mouette-explosion {
+    opacity: 0 !important;
+    transition: opacity 0.1s;
+    pointer-events: none; /* Empêche de recliquer pendant que ça explose */
+}
+
+
+
+#bulle-indice {
+    position: absolute;
+    bottom: 30px; 
+    left: 400px;
+    background-color: transparent; /* PLUS DE FOND */
+    color: #333; /* Tu peux mettre 'white' si le texte est sur une zone sombre */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 11px;
+    font-weight: bold;
+    z-index: 1000;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.8); /* Optionnel : ajoute un petit contour pour que le texte soit lisible sur l'image */
+}
+
+
+
+@keyframes battement {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+
+.hitbox-cheval {
+    position: absolute;
+    /* --- RÉGLAGES À MODIFIER --- */
+    top: 85px;      /* Position verticale depuis le haut */
+    left: 1270px;     /* Position horizontale depuis la gauche */
+    width: 60px;    /* Largeur de la zone cliquable */
+    height: 90px;   /* Hauteur de la zone cliquable */
+    
+    /* --- APPARENCE --- */
+    cursor: pointer;
+    z-index: 999;    /* Pour être sûr qu'elle soit au-dessus du reste */
+    
+    /* Supprime ou commente la ligne ci-dessous quand tu as fini de la placer */
+    /*background-color: rgba(255, 0, 0, 0.3); /* Rouge transparent pour voir la zone */
+}
+
+    </style>
+</head>
+<body>
+
+    <div class="polaroid p1"><img src="alix_table.JPEG" alt="neuille 1"></div>
+    <div class="polaroid p2"><img src="alix-cheval.JPEG"></div>
+    <div class="polaroid p3"><img src="alix_seule_ski.JPEG" alt="neuille 3"></div>
+    <div class="polaroid p4"><img src="alix_scoot.JPEG" alt="neuille 4"></div>
+
+<a href="activite.html" target="_blank" class="hitbox-cheval"></a>
+
+   <div class="envelope-wrapper" onclick="ouvrirEnveloppe(this)">
+        <div class="envelope">
+            <div class="letter">
+             Bon anniversaire mon coeur ❤️ <br><br>
+                Réserve ton week-end du 8 et prépare ta valise !
+            </div>
+            <div class="envelope-front"></div>
+        </div>
+        <div class="hint">Clique sur l'enveloppe ma biche...</div>
+    </div>
+
+
+<div id="phare-zone">
+    <div id="phare-halo"></div>
+</div>
+
+
+
+
+
+
+
+<img id="mouette" src="https://static.vecteezy.com/system/resources/previews/040/452/489/large_2x/ai-generated-flying-seagull-isolated-on-transparent-background-free-png.png" alt="Mouette">
+
+<script>
+    const laMouette = document.getElementById('mouette');
+
+    laMouette.addEventListener('click', function(e) {
+        // CORRECTION ICI : classList avec un "s"
+        this.classList.add('mouette-explosion');
+
+        // L'explosion
+        confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: {
+                x: e.clientX / window.innerWidth,
+                y: e.clientY / window.innerHeight
+            }
+        });
+
+        // La redirection après l'explosion
+        setTimeout(function() {
+            window.location.href = "chasse_au_tresor.html";
+        }, 1500);
+    });
+</script>
+
+<div id="bulle-indice">Des indice se cache sur cette page...</div>
+
+
+
+
+<script>
+    const phareZone = document.getElementById('phare-zone');
+
+    phareZone.addEventListener('click', function() {
+        // Au clic, on ajoute ou enlève la classe 'active'
+        this.classList.toggle('active');
+    });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script>
+function ouvrirEnveloppe(element) {
+    // 1. On ouvre l'enveloppe (ton code actuel)
+    element.classList.toggle('open');
+
+    // 2. Si l'enveloppe s'ouvre, on lance les confettis après un petit délai
+    // (le temps que la lettre commence à sortir)
+    if (element.classList.contains('open')) {
+        setTimeout(() => {
+            confetti({
+                particleCount: 150, // Nombre de confettis
+                spread: 70,          // Largeur du jet
+                origin: { y: 0.6 },  // Position de départ (0.6 = un peu au-dessus du bas)
+                colors: ['#ff4d6d', '#ffafcc', '#ffffff', '#ffb3c1'] // Tes couleurs (roses et blanc)
+            });
+        }, 600); // 600ms de délai pour synchroniser avec l'animation de la lettre
+    }
+}
+</script>
+</body>
+</html>
