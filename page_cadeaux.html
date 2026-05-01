@@ -308,6 +308,43 @@ body{
     -moz-transform: scale(0.8); /* Pour Firefox qui ne gère pas 'zoom' */
     -moz-transform-origin: top center;
 }
+
+
+
+.link-container {
+    text-decoration: none; /* Enlève le soulignement du texte */
+    color: inherit;
+}
+
+.square-button {
+    /* --- PARAMÈTRES DE POSITION --- */
+    position: absolute; 
+    top: 700px;    /* Distance depuis le HAUT de la page */
+    left: 1410px;   /* Distance depuis la GAUCHE de la page */
+    width: 40px;           /* Largeur du carré */
+    height: 40px;          /* Hauteur identique pour faire un carré */
+    background-color: #ff9a9e; /* Couleur de fond (comme ton Tinder) */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px;    /* Optionnel : bords légèrement arrondis */
+    font-weight: bold;
+    text-align: center;
+    transition: transform 0.2s; /* Petit effet au survol */
+    cursor: pointer;
+    border: 3px solid white;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.square-button:hover {
+    transform: scale(1.05); /* Le carré grossit un peu quand on passe dessus */
+}
+.square-button {
+    background-image: url('tinder_logo.PNG');
+    background-size: cover;
+    background-position: center;
+}
+
     </style>
 </head>
 <body>
@@ -335,7 +372,11 @@ body{
     <div id="phare-halo"></div>
 </div>
 
-
+<!-- Le lien englobe le carré pour le rendre cliquable -->
+<a href="Tinduz.html" class="link-container">
+    <div class="square-button">
+    </div>
+</a>
 
 
 

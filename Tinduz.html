@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Tinder Clone</title>
+    <style>
+        /* --- STYLE CSS --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%);
+            overflow: hidden;
+        }
+
+        /* --- TEXTE DÉFILANT SUR LES CÔTÉS (AJUSTÉ) --- */
+        .side-text {
+           position: absolute;
+            white-space: nowrap;
+            font-weight: bold;
+            font-size: 20px;
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+            pointer-events: none;
+            width: 100%; /* Prend toute la largeur */
+            left: 0
+        }
+
+        .left-text {
+            top: 10px; /* Positionné en haut */
+        }
+
+        .right-text {
+            bottom: 10px; /* Positionné en bas */
+        }
+
+        marquee {
+            width: 100%;
+        }
+
+        /* --- NOUVEAU : POP-UPS DE PUB --- */
+        .ad-popup {
+            position: absolute;
+            width: 220px;
+            height: 250px;
+            background: white;
+            border: 3px solid #ff00ff;
+            box-shadow: 5px 5px 0px #00ffff;
+            z-index: 500; /* Augmenté pour être au-dessus de tout */
+            overflow: hidden;
+            display: none; /* Masqué par défaut */
+            flex-direction: column;
+            cursor: pointer;
+            animation: flash 1s infinite alternate;
+        }
+
+        @keyframes flash {
+            from { border-color: #ff00ff; }
+            to { border-color: #00ffff; }
+        }
+
+        .ad-header {
+            background: #e0dee0;
+            color: rgb(20, 19, 19);
+            font-size: 6px;
+            padding: 2px 5px;
+            text-align: left;
+            font-weight: bold;
+            height: 7px;        
+            line-height: 7px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .close-ad {
+            background: #00ffff;
+            color: black;
+            border: 1px solid black;
+            cursor: pointer;
+            padding: 0 4px;
+            font-size: 10px;
+            font-weight: bold;
+            line-height: 10px;
+        }
+
+        .ad-content {
+            flex-grow: 1;
+            background-size: cover;
+            background-position: center;
+        }
+
+        /* Positionnement des 4 pubs */
+        .ad-1 { left: 200px; top: 100px; }
+        .ad-2 { left: 400px; bottom: 150px; }
+        .ad-3 { right: 400px; top: 150px; }
+        .ad-4 { right: 200px; bottom: 100px; }
+
+        .app-container {
+            width: 320px;
+            height: 650px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .card-stack {
+            position: relative;
+            width: 100%;
+            height: 550px;
+            perspective: 1000px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .card {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.5s ease;
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            align-items: flex-end;
+            color: white;
+            cursor: grab;
+            left: 0;
+        }
+
+        .card:active {
+            cursor: grabbing;
+        }
+
+        .card-info {
+            padding: 25px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%);
+            width: 100%;
+            pointer-events: none;
+        }
+
+        .card-info h2 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .card-info p {
+            margin: 5px 0 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            gap: 40px;
+        }
+
+        .btn {
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            background: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .btn:active {
+            transform: scale(0.9);
+        }
+
+        .like { color: #2ecc71; border: 2px solid #2ecc71; }
+        .dislike { color: #e74c3c; border: 2px solid #e74c3c; }
+
+        .swipe-left { 
+            transform: translateX(-200%) rotate(-40deg) !important; 
+            opacity: 0; 
+        }
+        .swipe-right { 
+            transform: translateX(200%) rotate(40deg) !important; 
+            opacity: 0; 
+        }
+
+        .empty-msg {
+            position: absolute;
+            top: 50%;
+            text-align: center;
+            color: #1d1c1c;
+            width: 100%;
+        }
+
+      /* --- STYLE DES BANDEAUX LATÉRAUX --- */
+.side-banner {
+    position: fixed; /* Reste fixe lors du scroll */
+    top: 0;
+    width: 210px; /* Largeur standard publicitaire */
+    height: 100vh; /* Toute la hauteur de l'écran */
+    background-color: #000;
+    z-index: 100; /* Passe au-dessus de tout */
+    display: flex;
+    flex-direction: column;
+    border-left: 4px solid #e0dee0;
+    border-right: 4px solid #e0dee0;
+}
+
+.left-banner {
+    left: 0;
+}
+
+.right-banner {
+    right: 0;
+}
+
+.side-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Remplit l'espace sans déformer */
+}
+
+/* --- AJUSTEMENT DU RESTE DE LA PAGE --- */
+/* On s'assure que le contenu central ne passe pas sous les bandeaux */
+.app-container {
+    margin: 0 170px; 
+}
+
+/* Ajustement des textes défilants pour qu'ils s'arrêtent avant les bandeaux */
+.side-text {
+    width: calc(100% - 320px) !important;
+    left: 160px !important;
+}
+/* --- STYLE DU TITRE AU-DESSUS DU CADRE --- */
+.top-title {
+    color: white;
+    font-size: 18px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    margin-bottom: 20px; /* Espace entre le titre et la carte */
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    z-index: 20;
+}
+
+    </style>
+</head>
+<body>
+
+    <!-- Pop-ups de Publicité -->
+    <div id="ad-1" class="ad-popup ad-1">
+        <div class="ad-header">PUBLICITÉ - OFFRE FLASH <span class="close-ad" onclick="closeAd('ad-1')">X</span></div>
+        <div class="ad-content" style="background-image: url('pub_lapinou.png');"></div>
+    </div>
+    <div id="ad-2" class="ad-popup ad-2">
+        <div class="ad-header">DISPONIBLE ICI <span class="close-ad" onclick="closeAd('ad-2')">X</span></div>
+        <div class="ad-content" style="background-image: url('pub_coach.png');"></div>
+    </div>
+    <div id="ad-3" class="ad-popup ad-3">
+        <div class="ad-header">SPONSORISÉ <span class="close-ad" onclick="closeAd('ad-3')">X</span></div>
+        <div class="ad-content" style="background-image: url('pub_monopoly.png');"></div>
+    </div>
+    <div id="ad-4" class="ad-popup ad-4">
+        <div class="ad-header">CLIQUER ICI <span class="close-ad" onclick="closeAd('ad-4')">X</span></div>
+        <div class="ad-content" style="background-image: url('pub_machiato.png');"></div>
+    </div>
+
+   <!-- Bandeau Gauche -->
+<div class="side-banner left-banner">
+    <div class="ad-header" style="height: 20px; line-height: 20px; font-size: 13px; text-align: center; display: block;">PUBLICITÉ</div>
+    <img src="pub_machiato.png" alt="Publicité Gauche">
+</div>
+
+<!-- Bandeau Droit -->
+<div class="side-banner right-banner">
+    <div class="ad-header" style="height: 20px; line-height: 20px; font-size: 13px; text-align: center; display: block;">PUBLICITÉ</div>
+    <img src="pub_chao.png" alt="Publicité Droite">
+</div>
+
+    <!-- Bandeaux défilants sur les côtés -->
+    <div class="side-text left-text">
+        <marquee scrollamount="8">LES HOMMES LES PLUS CHAUDS DE TA RÉGION - LES HOMMES LES PLUS CHAUDS DE TA RÉGION</marquee>
+    </div>
+    <div class="side-text right-text">
+        <marquee scrollamount="8" direction="right">LES HOMMES LES PLUS CHAUDS DE TA RÉGION - LES HOMMES LES PLUS CHAUDS DE TA RÉGION</marquee>
+    </div>
+
+    <div class="app-container">
+       <h1 class="top-title">CHOISIS AVEC QUEL CAMILLE TU VEUX PARTIR</h1>
+        <div class="empty-msg">Plus personne dans votre secteur...</div>
+        <div id="card-stack" class="card-stack">
+            <!-- Les cartes injectées par JS -->
+        </div>
+
+        <div class="controls">
+            <button class="btn dislike" onclick="swipe('left')">✘</button>
+            <button class="btn like" onclick="swipe('right')">❤</button>
+        </div>
+    </div>
+
+    <audio id="sound-like" src="ok_lets_go_2.mp3"></audio>
+    <audio id="sound-dislike" src="neuille.mp3"></audio>
+
+    <script>
+        /* --- LOGIQUE JAVASCRIPT --- */
+        const profiles = [
+            { name: "Camille", age: 24, img: "camille_taff.JPEG", desc: "J'adore mon travail, au lieu d'enfiler ma blouse je t'enfilerais bien toi." },
+            { name: "Camille", age: 24, img: "camille_lezard.JPEG", desc: "Amoureux de la nature, j'adore les lézards. Moi aussi il m'arrive de laisser traîner ma queue." },
+            { name: "Camille", age: 24, img: "camille_jul.JPEG", desc: "Fan incontesté de JUL, je cherche ma Tchikita." },
+            { name: "Camille", age: 24, img: "camille_q.JPG", desc: "Pleine Lune pour les amatrices d'astrologie." }, 
+            { name: "Camille", age: 24, img: "camille_bg.JPEG", desc: "Si tu swipes à droite, je peux enlever la chemise." },
+            { name: "Camille", age: 24, img: "camille_discours.JPG", desc: "Grand orateur, je sais parler aux femmes." }, 
+            { name: "Camille", age: 24, img: "camille_fuckboy.JPEG", desc: "Mystérieux et discret, pourtant mes 17 cm le sont moins." }
+        ];
+
+        const stack = document.getElementById('card-stack');
+        const soundLike = document.getElementById('sound-like');
+        const soundDislike = document.getElementById('sound-dislike');
+
+        function initApp() {
+            stack.innerHTML = '';
+            profiles.forEach((profile, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.style.backgroundImage = `url('${profile.img}')`;
+                card.style.zIndex = profiles.length - index;
+                
+                card.innerHTML = `
+                    <div class="card-info">
+                        <h2>${profile.name}, ${profile.age}</h2>
+                        <p>${profile.desc}</p>
+                    </div>
+                `;
+                stack.appendChild(card);
+            });
+            
+            // Lancement de la séquence de publicités
+            startAdSequence();
+        }
+
+        // --- GESTION DES PUBS POP-UP ---
+        function startAdSequence() {
+            for (let i = 1; i <= 4; i++) {
+                setTimeout(() => {
+                    const ad = document.getElementById(`ad-${i}`);
+                    if (ad) ad.style.display = 'flex';
+                }, i * 15000); // 15s, 30s, 45s, 60s
+            }
+        }
+
+        function closeAd(id) {
+            const ad = document.getElementById(id);
+            if (ad) ad.style.display = 'none';
+        }
+
+        function swipe(direction) {
+            const cards = document.querySelectorAll('.card:not(.swipe-left):not(.swipe-right)');
+            
+            if (cards.length > 0) {
+                const topCard = cards[0];
+                
+                if (direction === 'right') {
+                    topCard.classList.add('swipe-right');
+                    soundLike.currentTime = 0;
+                    soundLike.play().catch(e => console.log("Audio play blocked"));
+                } else {
+                    topCard.classList.add('swipe-left');
+                    soundDislike.currentTime = 0;
+                    soundDislike.play().catch(e => console.log("Audio play blocked"));
+                }
+
+                setTimeout(() => {
+                    topCard.remove();
+                }, 600);
+            }
+        }
+
+        initApp();
+    </script>
+</body>
+</html>
