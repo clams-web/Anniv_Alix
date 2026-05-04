@@ -94,11 +94,10 @@
             background-position: center;
         }
 
-        /* Positionnement des 4 pubs */
+        /* Positionnement des 3 pubs restantes */
         .ad-1 { left: 200px; top: 100px; }
         .ad-2 { left: 400px; bottom: 150px; }
         .ad-3 { right: 400px; top: 150px; }
-        .ad-4 { right: 200px; bottom: 100px; }
 
         .app-container {
             width: 320px;
@@ -257,7 +256,7 @@
 </head>
 <body>
 
-    <!-- Pop-ups de Publicité -->
+    <!-- Pop-ups de Publicité (4ème retirée) -->
     <div id="ad-1" class="ad-popup ad-1">
         <div class="ad-header">PUBLICITÉ - OFFRE FLASH <span class="close-ad" onclick="closeAd('ad-1')">X</span></div>
         <div class="ad-content" style="background-image: url('pub_lapinou.png');"></div>
@@ -270,10 +269,6 @@
         <div class="ad-header">SPONSORISÉ <span class="close-ad" onclick="closeAd('ad-3')">X</span></div>
         <div class="ad-content" style="background-image: url('pub_monopoly.png');"></div>
     </div>
-    <div id="ad-4" class="ad-popup ad-4">
-        <div class="ad-header">CLIQUER ICI <span class="close-ad" onclick="closeAd('ad-4')">X</span></div>
-        <div class="ad-content" style="background-image: url('pub_machiato.png');"></div>
-    </div>
 
    <!-- Bandeau Gauche -->
 <div class="side-banner left-banner">
@@ -284,7 +279,7 @@
 <!-- Bandeau Droit -->
 <div class="side-banner right-banner">
     <div class="ad-header" style="height: 20px; line-height: 20px; font-size: 13px; text-align: center; display: block;">PUBLICITÉ</div>
-    <img src="pub_chao.png" alt="Publicité Droite">
+    <img src="pub_chao.jpg" alt="Publicité Droite">
 </div>
 
     <!-- Bandeaux défilants sur les côtés -->
@@ -344,17 +339,17 @@
                 stack.appendChild(card);
             });
             
-            // Lancement de la séquence de publicités
+            // Lancement de la séquence de publicités (Boucle ajustée à 3)
             startAdSequence();
         }
 
         // --- GESTION DES PUBS POP-UP ---
         function startAdSequence() {
-            for (let i = 1; i <= 4; i++) {
+            for (let i = 1; i <= 3; i++) {
                 setTimeout(() => {
                     const ad = document.getElementById(`ad-${i}`);
                     if (ad) ad.style.display = 'flex';
-                }, i * 15000); // 15s, 30s, 45s, 60s
+                }, i * 15000); // 15s, 30s, 45s
             }
         }
 
